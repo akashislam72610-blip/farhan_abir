@@ -5,7 +5,7 @@ const silent = require("../../includes/silent");
 
 module.exports.config = {
   name: "silent",
-  version: "2.0.0",
+  version: "2.0.1",
   hasPermssion: 2,
   credits: "乛 M𝆠፝֟R ཐི༏ཋྀ JU𝆠፝֟W𝆠፝֟ELꜛཐི༏ཋྀ࿐",
   description: "Silent Mode: যে গ্রুপে চালু করবেন শুধু ওই গ্রুপে বট বন্ধের মতো হবে, শুধু বট অ্যাডমিনের কমান্ড কাজ করবে",
@@ -17,10 +17,6 @@ module.exports.config = {
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
   const reply = msg => silent.runAsAdmin(() => api.sendMessage(msg, threadID, messageID));
-
-  if (!silent.creditOk()) {
-    return reply("⛔ Silent সিস্টেম নিষ্ক্রিয়: ক্রেডিট পরিবর্তন করা হয়েছে।\nআসল ক্রেডিট ফিরিয়ে দিন।");
-  }
 
   // config.json-এ থাকা UID (ADMINBOT + DEVELOPER)
   if (!silent.isAdmin(senderID)) {
