@@ -1,170 +1,201 @@
 const fs = require("fs-extra");
+const axios = require("axios");
 
 module.exports.config = {
- name: "help",
- version: "5.2.0",
- hasPermssion: 0,
- credits: "乛 M𝆠፝֟R ཐི༏ཋྀ JU𝆠፝֟W𝆠፝֟ELꜛཐི༏ཋྀ࿐",
- description: "Shows all commands with details",
- commandCategory: "system",
- usages: "[command name]",
- cooldowns: 5
+  name: "help",
+  version: "6.1.0",
+  hasPermssion: 0,
+  credits: "乛 MR ཐི༏ཋྀ JU𝆠፝֟W𝆠፝֟ELꜛཐི༏ཋྀ࿐",
+  description: "All commands in one serial list + command info",
+  commandCategory: "system",
+  usages: "[command name]",
+  cooldowns: 5
 };
 
-const OWNER = "乛 M𝆠፝֟R ཐི༏ཋྀ JU𝆠፝֟W𝆠፝֟ELꜛཐི༏ཋྀ࿐";
-
-// 🔠 Font Converter
-function toBold(text) {
- const boldMap = {
- 'A': '𝙰', 'B': '𝙱', 'C': '𝙲', 'D': '𝙳', 'E': '𝙴', 'F': '𝙵', 'G': '𝙶',
- 'H': '𝙷', 'I': '𝙸', 'J': '𝙹', 'K': '𝙺', 'L': '𝙻', 'M': '𝙼', 'N': '𝙽',
- 'O': '𝙾', 'P': '𝙿', 'Q': '𝚀', 'R': '𝚁', 'S': '𝚂', 'T': '𝚃', 'U': '𝚄',
- 'V': '𝚅', 'W': '𝚆', 'X': '𝚇', 'Y': '𝚈', 'Z': '𝚉',
- 'a': '𝚊', 'b': '𝚋', 'c': '𝚌', 'd': '𝚍', 'e': '𝚎', 'f': '𝚏', 'g': '𝚐',
- 'h': '𝚑', 'i': '𝚒', 'j': '𝚓', 'k': '𝚔', 'l': '𝚕', 'm': '𝚖', 'n': '𝚗',
- 'o': '𝚘', 'p': '𝚙', 'q': '𝚚', 'r': '𝚛', 's': '𝚜', 't': '𝚝', 'u': '𝚞',
- 'v': '𝚟', 'w': '𝚠', 'x': '𝚡', 'y': '𝚢', 'z': '𝚣',
- '0': '𝟶', '1': '𝟷', '2': '𝟸', '3': '𝟹', '4': '𝟺',
- '5': '𝟻', '6': '𝟼', '7': '𝟽', '8': '𝟾', '9': '𝟿'
- };
- return String(text).split('').map(ch => boldMap[ch] || ch).join('');
+// ── 𝙼𝚘𝚗𝚘 𝙵𝚘𝚗𝚝 (𝙰𝙱𝙲𝙳 / 𝚊𝚋𝚌𝚍 / 𝟶𝟷𝟸𝟹) ──
+function toMono(text) {
+  return Array.from(String(text)).map(c => {
+    const code = c.codePointAt(0);
+    if (code >= 65 && code <= 90)  return String.fromCodePoint(0x1D670 + code - 65); // A-Z
+    if (code >= 97 && code <= 122) return String.fromCodePoint(0x1D68A + code - 97); // a-z
+    if (code >= 48 && code <= 57)  return String.fromCodePoint(0x1D7F6 + code - 48); // 0-9
+    return c;
+  }).join("");
 }
 
-function getPrefix(threadID) {
- const threadSetting = global.data.threadData.get(parseInt(threadID)) || {};
- return threadSetting.PREFIX || global.config.PREFIX || "";
+// ── ⚙ সেটিংস ──
+const USER_COOLDOWN = 5 * 60 * 1000;   // একই ইউজার ৫ মিনিটের আগে আবার help দিতে পারবে না
+const AUTO_DELETE   = 5 * 60 * 1000;   // ৫ মিনিট পর মেসেজ অটো ডিলিট
+const userCooldowns = new Map();
+
+// ── 🗑️ অটো ডিলিট ──
+function scheduleDelete(api, info) {
+  if (!info || !info.messageID) return;
+  setTimeout(() => {
+    try { api.unsendMessage(info.messageID); } catch (e) {}
+  }, AUTO_DELETE);
 }
 
-// ⏱️ আপটাইম ফরম্যাট
-function getUptime() {
- const t = Math.floor(process.uptime());
- const d = Math.floor(t / 86400);
- const h = Math.floor((t % 86400) / 3600);
- const m = Math.floor((t % 3600) / 60);
- const s = t % 60;
- return `${d}d ${h}h ${m}m ${s}s`;
+function sendAutoDelete(api, msg, threadID, replyID) {
+  return api.sendMessage(msg, threadID, (err, info) => {
+    if (!err) scheduleDelete(api, info);
+  }, replyID);
 }
 
-module.exports.languages = {
- "en": {
- "moduleInfo": `╔══════════════════════╗
-║ ✨ 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 𝐈𝐍𝐅𝐎 ✨ ║
-╠══════════════════════╣
-║
-║ 🔖 𝐍𝐚𝐦𝐞 ⇢ %1
-║ 📄 𝐔𝐬𝐚𝐠𝐞 ⇢ %2
-║ 📜 𝐃𝐞𝐬𝐜 ⇢ %3
-║ 🔑 𝐏𝐞𝐫𝐦 ⇢ %4
-║ 👨‍💻 𝐂𝐫𝐞𝐝𝐢𝐭 ⇢ %5
-║ 📂 𝐂𝐚𝐭𝐞𝐠𝐨𝐫𝐲⇢ %6
-║ ⏳ 𝐂𝐨𝐨𝐥𝐝𝐨𝐰𝐧⇢ %7s
-║
-╠══════════════════════╣
-║ ⚙ 𝐏𝐫𝐞𝐟𝐢𝐱 ⇢ %8
-║ 🤖 𝐁𝐨𝐭 ⇢ %9
-║ 👑 𝐎𝐰𝐧𝐞𝐫 ⇢ ${OWNER}
-╚══════════════════════╝`
- }
-};
-
-// 📦 কমান্ডের ইনফো টেক্সট
-function buildDetail(getText, command, prefix) {
- return getText("moduleInfo",
- toBold(command.config.name),
- toBold(command.config.usages || "Not Provided"),
- toBold(command.config.description || "Not Provided"),
- toBold(command.config.hasPermssion),
- toBold(command.config.credits || "Unknown"),
- toBold(command.config.commandCategory || "Unknown"),
- toBold(command.config.cooldowns || 0),
- toBold(prefix || "no-prefix"),
- toBold(global.config.BOTNAME || OWNER)
- );
+// ── config.json পড়া ──
+function readConfig() {
+  try {
+    const configPath = __dirname + "/../../config.json";
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    }
+  } catch (e) {}
+  return {};
 }
 
-// ✂️ ছোট টুকরোয় ভাগ করে ক্রমানুসারে পাঠাবে
-function sendLong(api, lines, threadID, messageID) {
- const LIMIT = 3000;
- const chunks = [];
- let cur = "";
- for (const line of lines) {
- if (cur && (cur + "\n" + line).length > LIMIT) {
- chunks.push(cur);
- cur = line;
- } else {
- cur = cur ? cur + "\n" + line : line;
- }
- }
- if (cur) chunks.push(cur);
-
- const sendNext = (i) => {
- if (i >= chunks.length) return;
- api.sendMessage(chunks[i], threadID, () => sendNext(i + 1), i === 0 ? messageID : undefined);
- };
- sendNext(0);
+function getPrefix() {
+  const cfgJson = readConfig();
+  return cfgJson.PREFIX || global.config?.PREFIX || "!";
 }
 
-// 🎯 Prefix ছাড়া "help <command>" ডিটেক্ট
-module.exports.handleEvent = function ({ api, event, getText }) {
- const { commands } = global.client;
- const { threadID, messageID, body } = event;
- if (!body) return;
+// ── 📋 নির্দিষ্ট কমান্ডের তথ্য ──
+async function sendCommandInfo(api, event, commandName) {
+  const { threadID, messageID } = event;
+  const { commands } = global.client;
+  const prefix = getPrefix();
 
- const lowerBody = body.trim().toLowerCase();
- const prefix = global.config.PREFIX || "";
- let args = null;
+  const cmd = commands.get(commandName.toLowerCase());
+  if (!cmd) {
+    return sendAutoDelete(api,
+      `╔════════════════╗\n║  ❌ ${toMono("NOT FOUND")} ❌  ║\n╚════════════════╝\n\n` +
+      `「 ${toMono(commandName)} 」 নামে কোনো কমান্ড নেই!\n\n` +
+      `📌 ${toMono("All commands")}: ${toMono(prefix + "help")}`,
+      threadID, messageID
+    );
+  }
 
- if (lowerBody.startsWith(prefix.toLowerCase() + "help ")) {
- args = body.trim().slice(prefix.length).trim().split(/\s+/).slice(1);
- } else if (lowerBody.startsWith("help ")) {
- args = body.trim().split(/\s+/).slice(1);
- } else {
- return;
- }
+  const cfg = cmd.config || {};
+  const cfgJson = readConfig();
+  const botName = cfgJson.BOTNAME || "⎯꯭𓆩꯭𝆺𝅥😻⃞𝐑⃞𝐈⃞𝐘⃞𝐀⃞༢࿐";
+  const ownerName = cfgJson.OWNER_NAME || "乛 M𝆠፝֟R ཐི༏ཋྀ JU𝆠፝֟W𝆠፝֟ELꜛཐི༏ཋྀ࿐";
 
- if (!args[0] || !commands.has(args[0].toLowerCase())) return;
+  const permMap = {
+    0: "👤 " + toMono("All User"),
+    1: "🛡️ " + toMono("Group Admin"),
+    2: "👑 " + toMono("Bot Admin"),
+    3: "🔱 " + toMono("Owner")
+  };
+  const perm = permMap[cfg.hasPermssion] || permMap[0];
 
- const command = commands.get(args[0].toLowerCase());
- const detail = buildDetail(getText, command, getPrefix(threadID));
- return api.sendMessage(detail, threadID, undefined, messageID);
-};
+  const infoText =
+`╔════════════════╗
+║  ✨ ${toMono("COMMAND INFO")} ✨
+╠════════════════╣
+║ 🔖 ${toMono("Name")} ⇢ ${toMono(cfg.name || commandName)}
+║ 📄 ${toMono("Usage")} ⇢ ${toMono(cfg.usages || "No usage")}
+║ 📜 ${toMono("Desc")} ⇢ ${toMono(cfg.description || "No description")}
+║ 🔑 ${toMono("Perm")} ⇢ ${perm}
+║ 👨‍💻 ${toMono("Credit")} ⇢ ${cfg.credits || "Unknown"}
+║ 📂 ${toMono("Category")} ⇢ ${toMono(cfg.commandCategory || "system")}
+║ ⏳ ${toMono("Cooldown")} ⇢ ${toMono(cfg.cooldowns || 0)}s
+╠════════════════╣
+║ ⚙ ${toMono("Prefix")} ⇢ ${toMono(prefix)}
+║ 🤖 ${toMono("Bot")} ⇢ ${botName}
+║ 👑 ${toMono("Owner")} ⇢ ${ownerName}
+╚════════════════╝`;
 
-module.exports.run = function ({ api, event, args, getText }) {
- const { commands } = global.client;
- const { threadID, messageID } = event;
- const prefix = getPrefix(threadID);
+  return sendAutoDelete(api, infoText, threadID, messageID);
+}
 
- // 🔍 নির্দিষ্ট কমান্ডের তথ্য
- if (args[0] && commands.has(args[0].toLowerCase())) {
- const command = commands.get(args[0].toLowerCase());
- const detail = buildDetail(getText, command, prefix);
- return api.sendMessage(detail, threadID, undefined, messageID);
- }
+// ── 🔥 Main Help Function ──
+async function sendHelp(api, event, args) {
+  if (args && args.length > 0) {
+    return sendCommandInfo(api, event, args[0].trim());
+  }
 
- // 📋 সব কমান্ড একসাথে
- const allCommands = Array.from(commands.keys())
- .filter(cmdName => cmdName && cmdName.trim() !== "")
- .sort();
+  const { commands } = global.client;
+  const { threadID, messageID } = event;
+  const prefix = getPrefix();
 
- const list = allCommands.map((cmdName, i) => {
- const num = toBold(String(i + 1).padStart(3, "0"));
- return `║ ${num} ➤ ${toBold(cmdName)}`;
- });
+  // সব কমান্ড A-Z সিরিয়ালে
+  const allCmds = [...new Set(
+    [...commands.keys()].map(n => (n || "").trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
 
- const header = `╔══════════════════════╗
-║ 📜 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 𝐋𝐈𝐒𝐓 📜 ║
-╠══════════════════════╣`;
+  // ── এক সিরিয়ালে লিস্ট: প্রতি লাইনে একটা কমান্ড, কোনো ফাঁক নেই ──
+  const pad = String(allCmds.length).length;
+  const commandList = allCmds.map((cmd, i) =>
+    `【${toMono(String(i + 1).padStart(pad, "0"))}】 ➜ ${toMono(cmd)}`
+  ).join("\n");
 
- const footer = `╠══════════════════════╣
-║ 🧮 𝐓𝐨𝐭𝐚𝐥 ⇢ ${toBold(allCommands.length)}
-║ ⏱️ 𝐔𝐩𝐭𝐢𝐦𝐞 ⇢ ${toBold(getUptime())}
-╠══════════════════════╣
-║ ⚙ 𝐏𝐫𝐞𝐟𝐢𝐱 ⇢ ${toBold(prefix || "(no prefix)")}
-║ 🤖 𝐁𝐨𝐭 ⇢ ${toBold(global.config.BOTNAME || OWNER)}
-║ 👑 𝐎𝐰𝐧𝐞𝐫 ⇢ ${OWNER}
-╠══════════════════════╣
-║ 💡 ${toBold("help <name>")} ⇢ 𝐃𝐞𝐭𝐚𝐢𝐥𝐬
-╚══════════════════════╝`;
+  const finalText =
+`┏━━━━━━━━━━━━━━━━┓
+   ✿ ${toMono("COMMAND LIST")} ✿
+┗━━━━━━━━━━━━━━━━┛
+${commandList}
+┏━━━━━━━━━━━━━━━━┓
+  ✦ ${toMono("Total")}: ${toMono(allCmds.length)} ${toMono("Commands")} ✦
+  📌 ${toMono("Info")}: ${toMono(prefix)}${toMono("help")} ${toMono("<cmd>")}
+┗━━━━━━━━━━━━━━━━┛`;
 
- sendLong(api, [header, ...list, footer], threadID, messageID);
+  const cacheDir = __dirname + "/cache";
+  const imgPath = cacheDir + "/helpallbg.jpg";
+  const bg = "https://i.imgur.com/MZOc4a3.jpeg";
+
+  try {
+    fs.ensureDirSync(cacheDir);
+
+    const res = await axios({
+      url: encodeURI(bg),
+      method: "GET",
+      responseType: "stream",
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+
+    const writer = fs.createWriteStream(imgPath);
+    res.data.pipe(writer);
+
+    writer.on("finish", () => {
+      api.sendMessage(
+        { body: finalText, attachment: fs.createReadStream(imgPath) },
+        threadID,
+        (err, info) => {
+          try { fs.unlinkSync(imgPath); } catch (e) {}
+          if (!err) scheduleDelete(api, info);
+        },
+        messageID
+      );
+    });
+
+    writer.on("error", () => {
+      sendAutoDelete(api, finalText, threadID, messageID);
+    });
+
+  } catch (error) {
+    console.error("Error:", error);
+    sendAutoDelete(api, finalText, threadID, messageID);
+  }
+}
+
+// ── শুধু prefix দিয়ে চলবে ──
+module.exports.run = async function ({ api, event, args }) {
+  const { threadID, messageID, senderID } = event;
+  const now = Date.now();
+  const last = userCooldowns.get(senderID);
+
+  if (last && now - last < USER_COOLDOWN) {
+    const remain = Math.ceil((USER_COOLDOWN - (now - last)) / 1000);
+    const min = Math.floor(remain / 60);
+    const sec = remain % 60;
+    return sendAutoDelete(
+      api,
+      `⏳ ${toMono("Cooldown")}!\n\n` +
+      `আপনি এইমাত্র help কমান্ড ব্যবহার করেছেন।\n` +
+      `আবার ব্যবহার করতে অপেক্ষা করুন: ${min} মিনিট ${sec} সেকেন্ড`,
+      threadID, messageID
+    );
+  }
+
+  userCooldowns.set(senderID, now);
+  return sendHelp(api, event, args);
 };
