@@ -4,14 +4,9 @@
 
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 const { AsyncLocalStorage } = require("async_hooks");
 
 const STATE_FILE = path.join(__dirname, "..", "Script", "commands", "cache", "silent.json");
-
-const CREDIT_HASH = "8f74924e81a157abaf089d90717e48a4949617a7379d20a2df567cb0ab0dad81";
-
-const hash = s => crypto.createHash("sha256").update(String(s == null ? "" : s).normalize("NFC")).digest("hex");
 
 const als = new AsyncLocalStorage();
 
@@ -33,16 +28,9 @@ function save() {
   }
 }
 
+// credit চেক বন্ধ: অন্য ফাইল কল করলেও যেন এরর না হয়, তাই সবসময় true
 function creditOk() {
-  try {
-    const cmd = global.client && global.client.commands && global.client.commands.get("silent");
-    if (!cmd || !cmd.config || hash(cmd.config.credits) !== CREDIT_HASH) return false;
-    const cfg = global.config || {};
-    if (hash(cfg.Author) !== CREDIT_HASH) return false;
-    return true;
-  } catch (_) {
-    return false;
-  }
+  return true;
 }
 
 // config.json-এ থাকা যেকোনো UID (ADMINBOT + DEVELOPER)
@@ -58,7 +46,7 @@ function isEnabled(threadID) {
 }
 
 function isActive(threadID) {
-  return isEnabled(threadID) && creditOk();
+  return isEnabled(threadID);
 }
 
 function set(threadID, on, by) {
